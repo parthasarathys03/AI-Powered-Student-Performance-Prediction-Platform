@@ -572,7 +572,8 @@ def get_explanation_and_advisory(
     use_cache: bool = True,
 ) -> dict:
     """
-    AI-Only advisory: Gemini (multi-key) → Ollama → RuntimeError.
+    AI-Only advisory: Groq → Gemini (multi-key) → Ollama → RuntimeError.
+    Groq is tried first — ~0.5s response fits Render's 30s window.
     No rule-based fallback. 100% AI-generated content.
 
     Supports caching: if student_id + same metrics were already processed,
@@ -604,24 +605,24 @@ def get_explanation_and_advisory(
     model_name = None
     fallback_used = False
 
-    # 1. Try Gemini (primary — multi-key rotation + model cascade)
-    ai_data = _call_gemini(*args, **extra_kwargs)
+    # 1. Try Groq FIRST — ~0.5s response, fits easily in Render's 30s window
+    ai_data = _call_groq(*args, **extra_kwargs)
     if ai_data is not None:
-        provider = "gemini"
-        model_name = ai_data.pop("_model_name", "gemini-2.5-flash")
+        provider = "groq"
+        model_name = ai_data.pop("_model_name", "llama-3.1-8b-instant")
         ai_data.pop("_key_index", None)
     else:
-        # 2. Failover to Groq (secondary — fast cloud inference)
-        logger.info("AI_FAILOVER_STARTED provider=groq reason='All Gemini keys exhausted' student=%s", student_name)
-        ai_data = _call_groq(*args, **extra_kwargs)
+        # 2. Failover to Gemini (multi-key rotation)
+        logger.info("AI_FAILOVER_STARTED provider=gemini reason='Groq unavailable' student=%s", student_name)
+        ai_data = _call_gemini(*args, **extra_kwargs)
         if ai_data is not None:
-            provider = "groq"
-            model_name = ai_data.pop("_model_name", "llama-3.3-70b-versatile")
+            provider = "gemini"
+            model_name = ai_data.pop("_model_name", "gemini-2.0-flash-lite")
             ai_data.pop("_key_index", None)
             fallback_used = True
         else:
             # 3. Failover to Ollama (tertiary — local LLM)
-            logger.info("AI_FAILOVER_STARTED provider=ollama reason='All Groq keys exhausted' student=%s", student_name)
+            logger.info("AI_FAILOVER_STARTED provider=ollama reason='All cloud providers exhausted' student=%s", student_name)
             ai_data = _call_ollama(*args, **extra_kwargs)
             if ai_data is not None:
                 provider = "ollama"
@@ -632,8 +633,8 @@ def get_explanation_and_advisory(
                 logger.error("AI_TOTAL_FAILURE all_providers_unavailable student=%s", student_name)
                 raise RuntimeError(
                     "AI advisory generation failed — all providers unavailable. "
-                    "Check GEMINI_API_KEY_1..6, GROQ_API_KEY_1..2 in backend/.env or ensure Ollama is running. "
-                    "Get free keys at https://aistudio.google.com/apikey or https://console.groq.com/keys"
+                    "Check GROQ_API_KEY_1, GEMINI_API_KEY_1..6 in backend/.env. "
+                    "Get free keys at https://console.groq.com/keys or https://aistudio.google.com/apikey"
                 )
 
     result = {
