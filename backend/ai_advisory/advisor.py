@@ -342,7 +342,7 @@ def _parse_gemini_json(raw_text: str) -> dict:
 # Retry config per model
 _RETRIES_PER_MODEL = 1  # 1 attempt per model, no retry
 _RETRY_DELAY = 0        # no delay between attempts
-_AI_TIMEOUT = 7         # seconds per API call — 7s allows 3 key attempts in 22s budget
+_AI_TIMEOUT = 6         # seconds per API call — Groq needs ~0.5-2s, Gemini fallback gets 6s
 
 
 def _call_gemini(

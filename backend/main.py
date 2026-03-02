@@ -61,8 +61,9 @@ from ai_advisory.advisor import (
 )
 
 # Hard time budget for AI advisory — Render free tier drops connections after 30s.
-# We cap total AI time at 22s, leaving 8s buffer for ML + DB + response.
-_ADVISORY_TIMEOUT = 22
+# Cold start can take 10-20s, so we only allow 8s for AI (Groq does ~0.5-2s).
+# This ensures total request time stays under 30s even after a cold start.
+_ADVISORY_TIMEOUT = 8
 import database as db
 from ml_analysis import analysis_service as cluster_svc
 
